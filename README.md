@@ -1,66 +1,113 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# News Aggregator
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A small Laravel-based news aggregator that fetches articles from multiple sources, stores them in the database, and exposes an API to query and consume the aggregated content.
 
-## About Laravel
+## Key features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Fetch articles from multiple external news sources (NewsAPI, The Guardian, NYTimes) via dedicated source classes.
+- Normalize and store articles, authors and categories in relational tables.
+- Avoid duplicate articles by URL; update existing articles when newer data arrives.
+- Observer hooks to react to newly created or updated articles (for notifications, indexing, etc.).
+- API endpoint to query articles with search, filters (date, category, source, author) and user-preferences.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Repo layout (important files)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- `app/Services/News/NewsAggregator.php` — orchestrates fetching, deduplication, saving and observer notifications.
+- `app/Services/News/Sources/` — implementations to fetch and map remote APIs into `ArticleData` objects.
+- `app/Models/Article.php`, `Author.php`, `Category.php` — Eloquent models and relationships.
+- `app/Data/ArticleData.php` — DTO for article payloads from remote sources.
+- `routes/api.php` — API routes (e.g. `GET /api/articles`).
+- `app/Http/Controllers/Api/ArticleController.php` — API controller that implements search & filtering.
+- `app/Providers/NewsServiceProvider.php` — registers the aggregator and sources.
 
-## Learning Laravel
+## Requirements
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- PHP 8.1+ (matches the project's composer.json)
+- Composer
+- A local database supported by Laravel (MySQL, MariaDB, SQLite, etc.)
+- Optional: `php artisan serve` for local serving
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+## Quick setup (local development)
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1. Clone the repository
 
-## Laravel Sponsors
+	```powershell
+	git clone <repo-url> news_aggregator
+	cd news_aggregator
+	```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+2. Install composer dependencies
 
-### Premium Partners
+	```powershell
+	composer install
+	```
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+3. Copy env and configure
 
-## Contributing
+	```powershell
+	copy .env.example .env
+	# Edit .env to set DB credentials and any API keys (NEWSAPI_API_KEY, GUARDIAN_API_KEY, NYTIMES_API_KEY)
+	```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+4. Generate app key
 
-## Code of Conduct
+	```powershell
+	php artisan key:generate
+	```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+5. Run migrations
 
-## Security Vulnerabilities
+	```powershell
+	php artisan migrate
+	```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+6. Start a local server
 
-## License
+	```powershell
+	php artisan serve
+	```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+7. The API endpoint for fetching articles is:
+
+	- GET /api/articles
+
+	Example:
+
+	```text
+	{base_url}api/articles?search=laravel&category=Tech&from_date=2025-10-01&sources[]=NewsAPI&authors[]=John+Doe
+	```
+
+## Routes and API
+
+- `GET /api/articles` — query articles with parameters:
+  - `search` — keyword search in title/description/content
+  - `from_date`, `to_date` — published_at filters
+  - `category`, `categories[]` — filter by category name (or a list)
+  - `source`, `sources[]` — filter by source string (or a list)
+  - `author`, `authors[]` — filter by author name (or a list)
+  - `per_page` — pagination size
+
+Responses use Laravel's pagination JSON object and include `authors` and `categories` relationships.
+
+## Scheduling
+
+- The repository includes a console command `news:fetch` wired in `app/Console/Commands/FetchNewsCommand.php` that calls the aggregator. To run it manually:
+
+  ```powershell
+  php artisan news:fetch
+  ```
+
+- It's configured in `routes/console.php` / scheduler to run on a schedule (adjust in `app/Console/Kernel.php` if needed).
+
+## Developer notes & tips
+
+- If you change routes, clear and regenerate route cache:
+
+  ```powershell
+  php artisan route:clear
+  php artisan route:cache
+  ```
+
+- If an API route returns 404 while the file and controller look correct, run `php artisan route:list` to inspect registered routes and check for middleware or caching issues.
+
+- The `NewsAggregator` processes articles in chunks to avoid memory issues and synchronizes many-to-many relationships (authors/categories) by name.
